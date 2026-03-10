@@ -107,9 +107,7 @@ namespace glz
       template <class T, size_t N = 0>
       consteval size_t count_members_impl() {
          using V = std::remove_cvref_t<T>;
-         if constexpr (N >= max_pure_reflection_count) {
-            return N;
-         } else if constexpr (can_init_n_members<V>(std::make_index_sequence<N + 1>{})) {
+         if constexpr (can_init_n_members<V>(std::make_index_sequence<N + 1>{})) {
             return count_members_impl<T, N + 1>();
          } else {
             return N;
