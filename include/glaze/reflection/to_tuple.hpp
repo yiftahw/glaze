@@ -92,19 +92,33 @@ namespace glz
          [[maybe_unused]] constexpr operator std::string_view() const { return {}; }
       };
 
-      template <class T, class... Args>
-         requires(std::is_aggregate_v<std::remove_cvref_t<T>>)
-      inline constexpr auto count_members = [] {
-         using V = std::remove_cvref_t<T>;
-         if constexpr (requires { V{Args{}..., any_t{}}; }) {
-            return count_members<V, Args..., any_t>;
-         }
-         else {
-            return sizeof...(Args);
-         }
-      }();
-
       constexpr size_t max_pure_reflection_count = 128;
+
+      // Check: can V be aggregate-initialized with N braced any_t groups?
+      // The pack expansion { {(void(Is), any_t{})}... } produces N separate braced-init-lists.
+      // i.e. V{ {any_t{}}, {any_t{}}, ..., {any_t{}} }
+      // This avoids brace elision, so C-style arrays will count correctly as 1 member, not N.
+      template <class V, size_t... Is>
+      consteval bool can_init_n_members(std::index_sequence<Is...>) {
+         return requires { V{ {(void(Is), any_t{})}... }; };
+      }
+
+      // Find the largest N for which braced-init with N members compiles
+      template <class T, size_t N = 0>
+      consteval size_t count_members_impl() {
+         using V = std::remove_cvref_t<T>;
+         if constexpr (N >= max_pure_reflection_count) {
+            return N;
+         } else if constexpr (can_init_n_members<V>(std::make_index_sequence<N + 1>{})) {
+            return count_members_impl<T, N + 1>();
+         } else {
+            return N;
+         }
+      }
+
+      template <class T>
+         requires std::is_aggregate_v<std::remove_cvref_t<T>>
+      inline constexpr size_t count_members = count_members_impl<T>();
 #endif
    }
 
